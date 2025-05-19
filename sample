@@ -1,0 +1,264 @@
+// 1. Producer-Consumer Using BlockingQueue
+import java.util.concurrent.*;
+
+class ProducerConsumerBlockingQueue {
+    private static final BlockingQueue<Integer> queue = new ArrayBlockingQueue<>(5);
+
+    static class Producer implements Runnable {
+        public void run() {
+            try {
+                for (int i = 0; i < 10; i++) {
+                    queue.put(i);
+                    System.out.println("Produced: " + i);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    static class Consumer implements Runnable {
+        public void run() {
+            try {
+                for (int i = 0; i < 10; i++) {
+                    Integer val = queue.take();
+                    System.out.println("Consumed: " + val);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        new Thread(new Producer()).start();
+        new Thread(new Consumer()).start();
+    }
+}
+
+// 2. Deadlock Example and Resolution
+class DeadlockExample {
+    private final Object lock1 = new Object();
+    private final Object lock2 = new Object();
+
+    public void methodA() {
+        synchronized (lock1) {
+            System.out.println("Thread 1: Holding lock1...");
+            try { Thread.sleep(100); } catch (InterruptedException e) {}
+            synchronized (lock2) {
+                System.out.println("Thread 1: Holding lock1 & lock2...");
+            }
+        }
+    }
+
+    public void methodB() {
+        synchronized (lock2) {
+            System.out.println("Thread 2: Holding lock2...");
+            try { Thread.sleep(100); } catch (InterruptedException e) {}
+            synchronized (lock1) {
+                System.out.println("Thread 2: Holding lock2 & lock1...");
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        DeadlockExample obj = new DeadlockExample();
+        new Thread(obj::methodA).start();
+        new Thread(obj::methodB).start();
+    }
+}
+
+// 3. Dining Philosophers Using Semaphore
+class DiningPhilosophers {
+    private static final int NUM_PHILOSOPHERS = 5;
+    private static final Semaphore[] forks = new Semaphore[NUM_PHILOSOPHERS];
+
+    static {
+        for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+            forks[i] = new Semaphore(1);
+        }
+    }
+
+    static class Philosopher implements Runnable {
+        private final int id;
+
+        public Philosopher(int id) {
+            this.id = id;
+        }
+
+        public void run() {
+            try {
+                while (true) {
+                    think();
+                    eat();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        private void think() throws InterruptedException {
+            System.out.println("Philosopher " + id + " is thinking.");
+            Thread.sleep(500);
+        }
+
+        private void eat() throws InterruptedException {
+            Semaphore left = forks[id];
+            Semaphore right = forks[(id + 1) % NUM_PHILOSOPHERS];
+
+            if (id % 2 == 0) {
+                left.acquire();
+                right.acquire();
+            } else {
+                right.acquire();
+                left.acquire();
+            }
+
+            System.out.println("Philosopher " + id + " is eating.");
+            Thread.sleep(500);
+            left.release();
+            right.release();
+        }
+    }
+
+    public static void main(String[] args) {
+        for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+            new Thread(new Philosopher(i)).start();
+        }
+    }
+}
+
+// 4. ReadWriteLock Example
+import java.util.concurrent.locks.*;
+
+class SharedResource {
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private int value = 0;
+
+    public void read() {
+        lock.readLock().lock();
+        try {
+            System.out.println("Reading value: " + value);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    public void write(int newValue) {
+        lock.writeLock().lock();
+        try {
+            System.out.println("Writing value: " + newValue);
+            this.value = newValue;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+}
+
+// 5. CountDownLatch for Thread Coordination
+import java.util.concurrent.CountDownLatch;
+
+class CountDownLatchDemo {
+    public static void main(String[] args) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(3);
+
+        Runnable worker = () -> {
+            System.out.println(Thread.currentThread().getName() + " started");
+            try { Thread.sleep(1000); } catch (InterruptedException e) {}
+            System.out.println(Thread.currentThread().getName() + " finished");
+            latch.countDown();
+        };
+
+        new Thread(worker).start();
+        new Thread(worker).start();
+        new Thread(worker).start();
+
+        latch.await();
+        System.out.println("Main thread proceeding after workers done");
+    }
+}
+
+// 6. CyclicBarrier Example
+import java.util.concurrent.CyclicBarrier;
+
+class CyclicBarrierExample {
+    public static void main(String[] args) {
+        CyclicBarrier barrier = new CyclicBarrier(3, () -> {
+            System.out.println("All threads reached barrier, executing barrier action");
+        });
+
+        Runnable task = () -> {
+            System.out.println(Thread.currentThread().getName() + " waiting at barrier");
+            try {
+                barrier.await();
+                System.out.println(Thread.currentThread().getName() + " passed the barrier");
+            } catch (Exception e) {}
+        };
+
+        new Thread(task).start();
+        new Thread(task).start();
+        new Thread(task).start();
+    }
+}
+
+// 7. ThreadPoolExecutor Custom Usage (see previous example #11)
+
+// 8. Future and Callable Example
+import java.util.concurrent.*;
+
+class FutureExample {
+    public static void main(String[] args) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        Callable<Integer> task = () -> {
+            Thread.sleep(1000);
+            return 42;
+        };
+
+        Future<Integer> future = executor.submit(task);
+        System.out.println("Result: " + future.get());
+        executor.shutdown();
+    }
+}
+
+// 9. Using ThreadLocal
+class ThreadLocalExample {
+    private static final ThreadLocal<Integer> threadLocal = ThreadLocal.withInitial(() -> 1);
+
+    public static void main(String[] args) {
+        Runnable task = () -> {
+            int value = threadLocal.get();
+            threadLocal.set(value + 1);
+            System.out.println(Thread.currentThread().getName() + ": " + threadLocal.get());
+        };
+
+        new Thread(task).start();
+        new Thread(task).start();
+    }
+}
+
+// 10. ConcurrentHashMap Internals Explanation
+/*
+ * Java 8 introduced a major redesign to ConcurrentHashMap eliminating segment-based locking.
+ * Instead, it relies on:
+ *  - CAS (Compare-And-Swap) for thread-safe operations on buckets
+ *  - Synchronized blocks applied at the bucket level for writes and structural changes
+ *  - Volatile fields for visibility of updated data
+ */
+
+// Key operations:
+/*
+ * GET Operation:
+ * - No locking is used
+ * - The 'table' array and each node's value are declared volatile
+ * - Visibility of latest writes is guaranteed
+ * - Simple traversal of the bucket (linked list or tree) happens
+ *
+ * PUT/REMOVE Operation:
+ * - Empty bucket: CAS is used to insert a new node
+ * - Non-empty bucket: synchronized on first node for safe modification
+ * - Resizing is assisted by multiple threads using forwarding nodes
+ *
+ * Trade-off:
+ * - Better concurrency than Hashtable or synchronizedMap
+ * - Fine-grained locking and lock-free reads increase scalability
+ */
